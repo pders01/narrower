@@ -26,11 +26,41 @@
   style.textContent = styles;
 
   let currentSkew = 0;
+  let lastSkewValue = 0;
+  let isEnabled = true;
 
-  const updateSkew = (value) => {
+  const updateSkew = (value, updateStorage = true) => {
     currentSkew = Math.max(0, Math.min(100, value));
     document.documentElement.className = currentSkew > 0 ? `skew-${currentSkew}` : "";
-    chrome.storage.sync.set({ globalSkew: currentSkew });
+    if (updateStorage) {
+      chrome.storage.sync.set({ globalSkew: currentSkew });
+    }
+  };
+
+  const toggleNarrower = async () => {
+    const hostname = window.location.hostname;
+    const { disabledSites } = await chrome.storage.sync.get({ disabledSites: [] });
+    const sites = [...disabledSites];
+    const index = sites.indexOf(hostname);
+
+    if (isEnabled) {
+      // Disable
+      if (index === -1) {
+        sites.push(hostname);
+      }
+      lastSkewValue = currentSkew;
+      updateSkew(0, false);
+    } else {
+      // Enable
+      if (index !== -1) {
+        sites.splice(index, 1);
+      }
+      updateSkew(lastSkewValue || currentSkew);
+    }
+
+    isEnabled = !isEnabled;
+    await chrome.storage.sync.set({ disabledSites: sites });
+    return { success: true, enabled: isEnabled };
   };
 
   try {
@@ -42,11 +72,10 @@
       },
       (settings) => {
         const hostname = window.location.hostname;
-        if (
-          !settings.disabledSites.includes(hostname) &&
-          settings.globalSkew > 0
-        ) {
+        isEnabled = !settings.disabledSites.includes(hostname);
+        if (isEnabled && settings.globalSkew > 0) {
           const value = Math.round(settings.globalSkew / 10) * 10;
+          lastSkewValue = value;
           updateSkew(value);
         }
       }
@@ -57,20 +86,24 @@
       try {
         if (request.action === "updateSkew") {
           const value = Math.round(request.value / 10) * 10;
+          lastSkewValue = value;
           updateSkew(value);
           sendResponse({ success: true, value: currentSkew });
         } else if (request.action === "increase-width") {
           console.log('increase-width');
-          if (currentSkew > 0) {
+          if (isEnabled && currentSkew > 0) {
             updateSkew(currentSkew - 10);
             sendResponse({ success: true, value: currentSkew });
           }
         } else if (request.action === "decrease-width") {
           console.log('decrease-width');
-          if (currentSkew < 100) {
+          if (isEnabled && currentSkew < 100) {
             updateSkew(currentSkew + 10);
             sendResponse({ success: true, value: currentSkew });
           }
+        } else if (request.action === "toggle-narrower") {
+          toggleNarrower().then(sendResponse);
+          return true;
         }
         return true; // Keep the message channel open for async response
       } catch (error) {

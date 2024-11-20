@@ -42,6 +42,13 @@
         "mac": "Command+Shift+Left"
       },
       "description": "Decrease content width"
+    },
+    "toggle-narrower": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Space",
+        "mac": "Command+Shift+Space"
+      },
+      "description": "Toggle Narrower on/off"
     }
   }
 }
