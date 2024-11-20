@@ -34,21 +34,24 @@
         "default": "Ctrl+Shift+Right",
         "mac": "Command+Shift+Right"
       },
-      "description": "Increase content width"
+      "description": "Increase content width",
+      "global": true
     },
     "decrease-width": {
       "suggested_key": {
         "default": "Ctrl+Shift+Left",
         "mac": "Command+Shift+Left"
       },
-      "description": "Decrease content width"
+      "description": "Decrease content width",
+      "global": true
     },
     "toggle-narrower": {
       "suggested_key": {
         "default": "Ctrl+Shift+Space",
         "mac": "Command+Shift+Space"
       },
-      "description": "Toggle Narrower on/off"
+      "description": "Toggle Narrower on/off",
+      "global": true
     }
   }
 }
