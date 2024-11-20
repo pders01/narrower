@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Skew",
+  "name": "Narrower",
   "version": "0.1",
   "description": "Adjust content width for ultra-wide monitors",
   "permissions": ["storage", "activeTab", "scripting", "tabs"],

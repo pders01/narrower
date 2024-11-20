@@ -1,6 +1,4 @@
-// Inject styles immediately using document.documentElement
 (() => {
-  // Check if we're in a restricted URL
   const isRestrictedUrl =
     window.location.protocol === "chrome:" ||
     window.location.protocol === "edge:" ||
@@ -8,27 +6,22 @@
     window.location.protocol === "about:" ||
     window.location.protocol === "data:";
 
-  // Don't inject anything in restricted URLs
   if (isRestrictedUrl) return;
 
-  // Create and inject style tag immediately
   const style = document.createElement("style");
   style.id = "skew-styles";
   document.documentElement.appendChild(style);
 
-  // Pre-calculate all possible styles
   const styles = Array.from(
     { length: 11 },
     (_, i) =>
       `.skew-${i * 10} > * { max-width: ${
         100 - i * 10
       }% !important; margin-inline: auto !important; }`
-  ).join("\n"); // Fixed escaped newline
+  ).join("\n");
 
-  // Force immediate style application
   style.textContent = styles;
 
-  // Apply stored settings as early as possible
   try {
     chrome.storage.sync.get(
       {
@@ -47,7 +40,6 @@
       }
     );
 
-    // Listen for updates
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === "updateSkew") {
         const value = Math.round(request.value / 10) * 10;
@@ -57,10 +49,8 @@
       }
     });
 
-    // Notify that content script is ready
     chrome.runtime.sendMessage({ action: "contentScriptReady" });
   } catch (error) {
-    // Ignore chrome API errors in restricted contexts
     console.debug("Skew: Running in restricted context");
   }
 })();

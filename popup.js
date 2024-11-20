@@ -1,14 +1,12 @@
-// Initialize immediately without waiting for DOMContentLoaded
 (() => {
-  // Cache DOM elements
   let elements = null;
 
   const initElements = () => {
     if (elements) return elements;
     elements = {
-      range: document.getElementById("skewRange"),
-      value: document.getElementById("skewValue"),
-      enable: document.getElementById("enableSkew"),
+      range: document.getElementById("narrowerRange"),
+      value: document.getElementById("narrowerValue"),
+      enable: document.getElementById("enableNarrower"),
       reset: document.getElementById("resetButton"),
     };
     return elements;
@@ -20,7 +18,6 @@
 
   const init = async () => {
     try {
-      // Get current tab immediately
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
@@ -31,7 +28,6 @@
         return;
       }
 
-      // Check if URL is accessible
       const isRestrictedUrl =
         tab.url.startsWith("chrome://") ||
         tab.url.startsWith("edge://") ||
@@ -40,145 +36,72 @@
         tab.url.startsWith("data:");
 
       if (isRestrictedUrl) {
-        showError("Skew is not available on this page.");
+        showError("Narrower is not available on this page.");
         return;
       }
 
       const hostname = new URL(tab.url).hostname;
 
-      // Load saved settings
       const settings = await chrome.storage.sync.get({
         globalSkew: 0,
         disabledSites: [],
       });
 
-      // Initialize UI state
       const els = initElements();
+      if (!els) return;
+
+      const isEnabled = !settings.disabledSites.includes(hostname);
+      els.enable.checked = isEnabled;
       els.range.value = settings.globalSkew;
       els.value.textContent = `${settings.globalSkew}%`;
-      els.enable.checked = !settings.disabledSites.includes(hostname);
+      els.range.disabled = !isEnabled;
 
-      // Batch storage updates
-      const storageQueue = new Map();
-      const processStorageQueue = () => {
-        if (storageQueue.size > 0) {
-          const updates = Object.fromEntries(storageQueue);
-          chrome.storage.sync.set(updates);
-          storageQueue.clear();
-        }
-      };
-
-      // Update width with fallback
-      const updateWidth = async (value) => {
+      const updateTab = async (value) => {
         try {
-          // Skip if URL is not accessible
-          if (!tab.url || isRestrictedUrl) return;
-
-          // Try messaging first
           await chrome.tabs.sendMessage(tab.id, {
             action: "updateSkew",
-            value: parseInt(value),
+            value,
           });
         } catch (error) {
-          // Skip injection if URL is not accessible
-          if (!tab.url || isRestrictedUrl) return;
-
-          // Fallback to direct script injection
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: (value) => {
-                let style = document.getElementById("skew-styles");
-                if (!style) {
-                  style = document.createElement("style");
-                  style.id = "skew-styles";
-                  document.documentElement.appendChild(style);
-                }
-                if (value > 0) {
-                  const roundedValue = Math.round(value / 10) * 10;
-                  document.documentElement.className = `skew-${roundedValue}`;
-                  style.textContent = `.skew-${roundedValue} > * { max-width: ${
-                    100 - roundedValue
-                  }% !important; margin-inline: auto !important; }`;
-                } else {
-                  document.documentElement.className = "";
-                  style.textContent = "";
-                }
-              },
-              args: [parseInt(value)],
-            });
-          } catch (injectError) {
-            if (!isRestrictedUrl) {
-              console.error("Failed to update page:", injectError);
-            }
-          }
+          console.error("Failed to update tab:", error);
         }
       };
 
-      // Event Listeners
-      els.range.addEventListener(
-        "input",
-        () => {
-          const value = els.range.value;
-          els.value.textContent = `${value}%`;
+      els.range.addEventListener("input", async (e) => {
+        const value = parseInt(e.target.value);
+        els.value.textContent = `${value}%`;
+        await chrome.storage.sync.set({ globalSkew: value });
+        updateTab(value);
+      });
 
-          if (els.enable.checked) {
-            updateWidth(value);
-            storageQueue.set("globalSkew", parseInt(value));
-            requestAnimationFrame(processStorageQueue);
-          }
-        },
-        { passive: true }
-      );
+      els.enable.addEventListener("change", async (e) => {
+        const disabled = !e.target.checked;
+        els.range.disabled = disabled;
 
-      els.enable.addEventListener(
-        "change",
-        () => {
-          const disabledSites = settings.disabledSites;
+        const sites = settings.disabledSites;
+        const index = sites.indexOf(hostname);
 
-          if (els.enable.checked) {
-            const index = disabledSites.indexOf(hostname);
-            if (index > -1) {
-              disabledSites.splice(index, 1);
-            }
-            updateWidth(els.range.value);
-          } else {
-            if (!disabledSites.includes(hostname)) {
-              disabledSites.push(hostname);
-            }
-            updateWidth(0);
-          }
+        if (disabled && index === -1) {
+          sites.push(hostname);
+        } else if (!disabled && index !== -1) {
+          sites.splice(index, 1);
+        }
 
-          storageQueue.set("disabledSites", disabledSites);
-          requestAnimationFrame(processStorageQueue);
-        },
-        { passive: true }
-      );
+        await chrome.storage.sync.set({ disabledSites: sites });
+        updateTab(disabled ? 0 : parseInt(els.range.value));
+      });
 
-      els.reset.addEventListener(
-        "click",
-        () => {
-          els.range.value = 0;
-          els.value.textContent = "0%";
-          if (els.enable.checked) {
-            updateWidth(0);
-          }
-          storageQueue.set("globalSkew", 0);
-          requestAnimationFrame(processStorageQueue);
-        },
-        { passive: true }
-      );
-
-      // Apply initial width if enabled
-      if (els.enable.checked && settings.globalSkew > 0) {
-        updateWidth(settings.globalSkew);
-      }
+      els.reset.addEventListener("click", async () => {
+        els.range.value = 0;
+        els.value.textContent = "0%";
+        await chrome.storage.sync.set({ globalSkew: 0 });
+        updateTab(0);
+      });
     } catch (error) {
-      console.error("Failed to initialize popup:", error);
-      showError("Unable to initialize Skew. Please try again.");
+      console.error("Initialization error:", error);
+      showError("Failed to initialize. Please try again.");
     }
   };
 
-  // Start initialization
   init();
 })();
