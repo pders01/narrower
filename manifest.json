@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Narrower",
   "version": "0.1",
-  "description": "Adjust content width for ultra-wide monitors",
+  "description": "Adjust content width for ultra-wide monitors. Icon credits: Data merge icons created by Fuzzee - Flaticon",
   "permissions": ["storage", "activeTab", "scripting", "tabs"],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
