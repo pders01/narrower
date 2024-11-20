@@ -9,6 +9,22 @@ chrome.commands.onCommand.addListener(async (command) => {
       return;
     }
 
+    // Inject content script if not already present
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          return window.__narrowerLoaded === true;
+        }
+      });
+    } catch (error) {
+      console.log('Content script not loaded, injecting...');
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      });
+    }
+
     console.log('Sending command to tab:', tab.id, command);
     // Send the command to the content script
     chrome.tabs.sendMessage(tab.id, { action: command }, (response) => {
@@ -20,5 +36,13 @@ chrome.commands.onCommand.addListener(async (command) => {
     });
   } catch (error) {
     console.error('Command handling error:', error);
+  }
+});
+
+// Listen for content script ready message
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "contentScriptReady") {
+    console.log("Content script ready in tab:", sender.tab.id);
+    sendResponse({ success: true });
   }
 });
