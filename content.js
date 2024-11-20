@@ -1,7 +1,7 @@
 (() => {
-  // Mark script as loaded
   window.__narrowerLoaded = true;
 
+  // Skip execution on restricted browser pages
   const isRestrictedUrl =
     window.location.protocol === "chrome:" ||
     window.location.protocol === "edge:" ||
@@ -15,6 +15,7 @@
   style.id = "skew-styles";
   document.documentElement.appendChild(style);
 
+  // Generate CSS classes for different width percentages
   const styles = Array.from(
     { length: 11 },
     (_, i) =>
@@ -44,14 +45,12 @@
     const index = sites.indexOf(hostname);
 
     if (isEnabled) {
-      // Disable
       if (index === -1) {
         sites.push(hostname);
       }
       lastSkewValue = currentSkew;
       updateSkew(0, false);
     } else {
-      // Enable
       if (index !== -1) {
         sites.splice(index, 1);
       }
@@ -64,7 +63,6 @@
   };
 
   try {
-    // Initialize from storage
     chrome.storage.sync.get(
       {
         globalSkew: 0,
@@ -81,7 +79,6 @@
       }
     );
 
-    // Handle messages
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       try {
         if (request.action === "updateSkew") {
@@ -111,7 +108,6 @@
       }
     });
 
-    // Notify background script that content script is ready
     chrome.runtime.sendMessage({ action: "contentScriptReady" });
   } catch (error) {
     console.debug("Skew: Running in restricted context");

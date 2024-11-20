@@ -1,14 +1,13 @@
 // Handle keyboard commands
 chrome.commands.onCommand.addListener(async (command) => {
   try {
-    // Get the active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab) {
       console.error('No active tab found');
       return;
     }
 
-    // Inject content script if not already present
+    // Verify content script is loaded, inject if needed
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -23,7 +22,6 @@ chrome.commands.onCommand.addListener(async (command) => {
       });
     }
 
-    // Send the command to the content script
     chrome.tabs.sendMessage(tab.id, { action: command }, (response) => {
       if (chrome.runtime.lastError) {
         console.error('Error sending message:', chrome.runtime.lastError);
