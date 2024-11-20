@@ -90,13 +90,11 @@
           updateSkew(value);
           sendResponse({ success: true, value: currentSkew });
         } else if (request.action === "increase-width") {
-          console.log('increase-width');
           if (isEnabled && currentSkew > 0) {
             updateSkew(currentSkew - 10);
             sendResponse({ success: true, value: currentSkew });
           }
         } else if (request.action === "decrease-width") {
-          console.log('decrease-width');
           if (isEnabled && currentSkew < 100) {
             updateSkew(currentSkew + 10);
             sendResponse({ success: true, value: currentSkew });
