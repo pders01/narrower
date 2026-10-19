@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Narrower",
-  "version": "0.1",
-  "description": "Adjust content width for ultra-wide monitors. Icon credits: Data merge icons created by Fuzzee - Flaticon",
-  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "version": "0.2.0",
+  "description": "Quiet, adjustable page centering for wide screens. Opt in per site, keep the page's own design.",
+  "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": ["http://*/*", "https://*/*", "file:///*"],
+      "js": ["settings.js", "content.js"],
       "run_at": "document_start"
     }
   ],
@@ -31,27 +31,21 @@
   "commands": {
     "increase-width": {
       "suggested_key": {
-        "default": "Ctrl+Shift+Right",
-        "mac": "Command+Shift+Right"
+        "default": "Alt+Shift+Right"
       },
-      "description": "Increase content width",
-      "global": true
+      "description": "Increase page width"
     },
     "decrease-width": {
       "suggested_key": {
-        "default": "Ctrl+Shift+Left",
-        "mac": "Command+Shift+Left"
+        "default": "Alt+Shift+Left"
       },
-      "description": "Decrease content width",
-      "global": true
+      "description": "Decrease page width"
     },
     "toggle-narrower": {
       "suggested_key": {
-        "default": "Ctrl+Shift+Space",
-        "mac": "Command+Shift+Space"
+        "default": "Alt+Shift+N"
       },
-      "description": "Toggle Narrower on/off",
-      "global": true
+      "description": "Toggle Narrower for this site"
     }
   }
 }

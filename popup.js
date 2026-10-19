@@ -1,107 +1,89 @@
 (() => {
-  let elements = null;
+  const range = document.getElementById("narrowerRange");
+  const value = document.getElementById("narrowerValue");
+  const enable = document.getElementById("enableNarrower");
+  const reset = document.getElementById("resetButton");
+  const status = document.getElementById("status");
+  let tabId;
+  let connection;
+  let sequence = 0;
 
-  const initElements = () => {
-    if (elements) return elements;
-    elements = {
-      range: document.getElementById("narrowerRange"),
-      value: document.getElementById("narrowerValue"),
-      enable: document.getElementById("enableNarrower"),
-      reset: document.getElementById("resetButton"),
-    };
-    return elements;
+  const messages = {
+    off: "Off. This page is exactly as you found it.",
+    active: "Centered. Nothing added to the page.",
+    "already-fits": "Already fits. No need to change this layout.",
+    "small-window": "Window is small enough. Original layout kept.",
+    layout: "This layout resists narrowing. Left unchanged for safety.",
+    fullscreen: "Paused while this page is in fullscreen.",
+    loading: "Waiting for the page to finish loading…",
   };
 
-  const showError = (message) => {
-    document.body.innerHTML = `<div class="error-message">${message}</div>`;
-  };
+  function showError(message) {
+    status.textContent = message;
+    status.dataset.error = "true";
+  }
 
-  const init = async () => {
+  function render(state) {
+    enable.checked = state.enabled;
+    range.disabled = !state.enabled;
+    range.value = state.width;
+    value.textContent = `${state.width}%`;
+    status.textContent = messages[state.reason] || messages.off;
+    delete status.dataset.error;
+  }
+
+  async function request(action, values = {}) {
+    const result = await chrome.runtime.sendMessage({
+      type: "narrower:request", tabId, action, ...values,
+    });
+    if (!result?.ok) throw new Error(result?.error || "Couldn't reach this page. Try reopening Narrower.");
+    return result;
+  }
+
+  async function update(action, values) {
+    const current = ++sequence;
     try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-
-      if (!tab?.url) {
-        showError("Unable to access current tab.");
-        return;
-      }
-
-      const isRestrictedUrl =
-        tab.url.startsWith("chrome://") ||
-        tab.url.startsWith("edge://") ||
-        tab.url.startsWith("chrome-extension://") ||
-        tab.url.startsWith("about:") ||
-        tab.url.startsWith("data:");
-
-      if (isRestrictedUrl) {
-        showError("Narrower is not available on this page.");
-        return;
-      }
-
-      const hostname = new URL(tab.url).hostname;
-
-      const settings = await chrome.storage.sync.get({
-        globalSkew: 0,
-        disabledSites: [],
-      });
-
-      const els = initElements();
-      if (!els) return;
-
-      const isEnabled = !settings.disabledSites.includes(hostname);
-      els.enable.checked = isEnabled;
-      els.range.value = settings.globalSkew;
-      els.value.textContent = `${settings.globalSkew}%`;
-      els.range.disabled = !isEnabled;
-
-      const updateTab = async (value) => {
-        try {
-          await chrome.tabs.sendMessage(tab.id, {
-            action: "updateSkew",
-            value,
-          });
-        } catch (error) {
-          console.error("Failed to update tab:", error);
-        }
-      };
-
-      els.range.addEventListener("input", async (e) => {
-        const value = parseInt(e.target.value);
-        els.value.textContent = `${value}%`;
-        await chrome.storage.sync.set({ globalSkew: value });
-        updateTab(value);
-      });
-
-      els.enable.addEventListener("change", async (e) => {
-        const disabled = !e.target.checked;
-        els.range.disabled = disabled;
-
-        const sites = settings.disabledSites;
-        const index = sites.indexOf(hostname);
-
-        if (disabled && index === -1) {
-          sites.push(hostname);
-        } else if (!disabled && index !== -1) {
-          sites.splice(index, 1);
-        }
-
-        await chrome.storage.sync.set({ disabledSites: sites });
-        updateTab(disabled ? 0 : parseInt(els.range.value));
-      });
-
-      els.reset.addEventListener("click", async () => {
-        els.range.value = 0;
-        els.value.textContent = "0%";
-        await chrome.storage.sync.set({ globalSkew: 0 });
-        updateTab(0);
-      });
+      const result = await request(action, values);
+      if (current === sequence) render(result);
     } catch (error) {
-      console.error("Initialization error:", error);
-      showError("Failed to initialize. Please try again.");
+      if (current !== sequence) return;
+      // Roll the controls back to saved state after a failed write.
+      try { render(await request("get-state")); } catch { /* Keep the error visible. */ }
+      showError(error.message);
     }
-  };
+  }
 
-  init();
+  // Preview while dragging, persist only on commit. No sync-storage write storm,
+  // and no unsaved timer that can be lost when the popup closes.
+  range.addEventListener("input", () => {
+    value.textContent = `${range.value}%`;
+    update("preview-width", { width: Number(range.value) });
+  });
+  range.addEventListener("change", () => update("set-width", { width: Number(range.value) }));
+  enable.addEventListener("change", () => update("set-enabled", { enabled: enable.checked }));
+  reset.addEventListener("click", () => update("reset"));
+
+  (async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id || !tab.url) throw new Error("Narrower isn't available on this page.");
+      const url = new URL(tab.url);
+      if (!["http:", "https:", "file:"].includes(url.protocol)) {
+        throw new Error("Narrower isn't available on browser pages. Open a website to try it.");
+      }
+      tabId = tab.id;
+      document.getElementById("hostname").textContent = url.hostname || "Local files";
+      render(await request("get-state"));
+      // Disconnect on popup close cancels any uncommitted slider preview.
+      connection = chrome.tabs.connect(tabId, { name: "narrower:popup" });
+      connection.onDisconnect.addListener(() => {
+        enable.disabled = range.disabled = reset.disabled = true;
+        showError("This page changed. Reopen Narrower to reconnect.");
+      });
+      enable.disabled = false;
+      reset.disabled = false;
+    } catch (error) {
+      showError(error.message);
+    }
+  })();
 })();
